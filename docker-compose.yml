@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  whmcs-auditor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    network_mode: "host"
+    env_file:
+      - .env
+    stdin_open: true
+    tty: true
