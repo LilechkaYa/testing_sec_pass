@@ -2,7 +2,7 @@ import requests
 import json
 import os
 import sys
-from dotenv import load_dotenv # <-- New Import!
+from dotenv import load_dotenv
 import urllib3
 from portal_data import PORTAL_SERVER_CONFIG 
 
