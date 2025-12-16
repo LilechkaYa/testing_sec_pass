@@ -75,7 +75,7 @@ def get_config_option_value(whmcs_product, name_key):
     return "N/A (Key Not Found)"
 
 
-def analyze_and_compare(whmcs_data, local_config):
+def analyze_and_compare(whmcs_data, portal_config):
     """
     Parses WHMCS data, determines server type, and compares required fields.
     """
@@ -104,7 +104,7 @@ def analyze_and_compare(whmcs_data, local_config):
     print("-" * 50)
 
     for field in fields_to_check:
-        local_value = local_config.get(field, 'N/A')
+        portal_value = portal_config.get(field, 'N/A')
         whmcs_value = 'N/A'
 
         if field in ["ns1", "dedicatedip"]:
@@ -113,18 +113,18 @@ def analyze_and_compare(whmcs_data, local_config):
         elif field in ["cpu", "ram", "disks"]:
             whmcs_value = get_config_option_value(whmcs_product, field)
 
-        if str(whmcs_value).lower().strip() != str(local_value).lower().strip():
+        if str(whmcs_value).lower().strip() != str(portal_value).lower().strip():
             discrepancies[field] = {
-                "local": local_value,
+                "portal": portal_value,
                 "whmcs": whmcs_value
             }
-            print(f"🚨 DISCREPANCY on {field.upper()}: Portal='{local_value}', WHMCS='{whmcs_value}'")
+            print(f"🚨 DISCREPANCY on {field.upper()}: Portal='{portal_value}', WHMCS='{whmcs_value}'")
         else:
-            print(f"✅ OK: {field.upper()} matches ('{local_value}')")
+            print(f"✅ OK: {field.upper()} matches ('{portal_value}')")
 
     if not discrepancies:
         print("-" * 50)
-        print("🎉 RESULT: All required configuration fields match the local expectation!")
+        print("🎉 RESULT: All required configuration fields match!")
     else:
         print("-" * 50)
         print(f"⚠️ RESULT: Found {len(discrepancies)} critical discrepancies. Please double check server configuration.")
@@ -159,7 +159,7 @@ def make_whmcs_request():
             return
 
         # Success: Start analysis and comparison
-        analyze_and_compare(data, local_config=PORTAL_SERVER_CONFIG)
+        analyze_and_compare(data, portal_config=PORTAL_SERVER_CONFIG)
 
     except requests.exceptions.RequestException as e:
         print(f"🚨 CONNECTION ERROR: Failed to reach the WHMCS API.")
