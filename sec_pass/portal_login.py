@@ -1,4 +1,5 @@
 import os
+import sys
 from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
@@ -15,9 +16,35 @@ from webdriver_manager.chrome import ChromeDriverManager
 load_dotenv()
 
 # Retrieve constants from environment variables
-LOGIN_URL = os.getenv("LOGIN_URL")
-PORTAL_USER = os.getenv("PORTAL_USER")
-PORTAL_PASS = os.getenv("PORTAL_PASS")
+#LOGIN_URL = os.getenv("LOGIN_URL")
+#PORTAL_USER = os.getenv("PORTAL_USER")
+#PORTAL_PASS = os.getenv("PORTAL_PASS")
+
+
+def get_portal_credentials():
+    try:
+        credentials = {
+            "LOGIN_URL": os.environ["LOGIN_URL"],
+            "PORTAL_USER": os.environ["PORTAL_USER"],
+            "PORTAL_PASS": os.environ["PORTAL_PASS"],
+        }
+        return credentials
+    except KeyError as e:
+        # Exit if any required variable is missing
+        print(f"FATAL ERROR: Environment variable {e} is not set.")
+        print("ACTION: Ensure your local .env file is present and correctly populated.")
+        sys.exit(1)
+
+
+# --- 2. API CREDENTIALS LOADING ---
+# Load and validate credentials right away. If any are missing, the script exits here.
+PORTAL_CREDENTIALS = get_portal_credentials()
+
+# Map the credentials into the main variables for clearer use (optional, but clean)
+LOGIN_URL = PORTAL_CREDENTIALS["LOGIN_URL"]
+PORTAL_USER = PORTAL_CREDENTIALS["PORTAL_USER"]
+PORTAL_PASS = PORTAL_CREDENTIALS["PORTAL_PASS"]
+
 
 # Temporary check to confirm .env loaded successfully
 print(f"DEBUG: URL loaded is {LOGIN_URL}")
@@ -25,16 +52,11 @@ print(f"DEBUG: URL loaded is {LOGIN_URL}")
 
 def login_only(driver: WebDriver) -> str:
     """
-    Handles the login workflow only, navigating to the login page, 
-    entering credentials, and submitting the form.
-
-    :param driver: The Selenium WebDriver instance.
-    :return: A string indicating the result: "successful login" or a detailed error message.
+    Handles the login workflow only, with detailed debug prints.
+    (Updated to use By.ID selectors based on HTML analysis)
     """
-    
-    # 0. Configuration check (Already confirmed to be working, but kept for safety)
     if not all([LOGIN_URL, PORTAL_USER, PORTAL_PASS]):
-        return "[CONFIG ERROR] Missing variables (URL/USER/PASS) in the .env file."
+        return "[CONFIG ERROR] Missing variables in .env."
         
     print(f"[Selenium] Navigating to login page: {LOGIN_URL}")
     
@@ -43,38 +65,29 @@ def login_only(driver: WebDriver) -> str:
         driver.get(LOGIN_URL)
         print("[DEBUG STEP 1] Successfully navigated to URL. Waiting for form elements.")
         
-        # 2. Wait for the login form elements to be present (adjust element names if necessary)
+        # 2. Wait for the login form elements to be present
+        # *** MODIFICATION 1: Changed By.NAME, "username" to By.ID, "LoginForm_username" ***
         WebDriverWait(driver, 10).until(
-            # This assumes the username field has a 'name' attribute set to 'username'
-            EC.presence_of_element_located((By.NAME, "username"))
+            EC.presence_of_element_located((By.ID, "LoginForm_username"))
         )
         
         print("[DEBUG STEP 2] Form elements found. Entering credentials.")
         
         # 3. Enter credentials
-        driver.find_element(By.NAME, "username").send_keys(PORTAL_USER)
-        driver.find_element(By.NAME, "password").send_keys(PORTAL_PASS)
+        # *** MODIFICATION 2: Changed By.NAME, "username" to By.ID, "LoginForm_username" ***
+        driver.find_element(By.ID, "LoginForm_username").send_keys(PORTAL_USER)
+        
+        # *** MODIFICATION 3: Changed By.NAME, "password" to By.ID, "LoginForm_password" ***
+        driver.find_element(By.ID, "LoginForm_password").send_keys(PORTAL_PASS)
         
         # 4. Find and click the login button
-        login_button = None
-        try:
-            # Try common selectors first
-            login_button = driver.find_element(By.CSS_SELECTOR, 'button[type="submit"]')
-        except NoSuchElementException:
-            try:
-                login_button = driver.find_element(By.CSS_SELECTOR, 'input[type="submit"]')
-            except NoSuchElementException:
-                # Fallback: Find button by common text
-                login_button = driver.find_element(
-                    By.XPATH, 
-                    "//button[contains(text(), 'Login') or contains(text(), 'Sign In')] | //input[@value='Login' or @value='Sign In']"
-                )
-                
+        # *** MODIFICATION 4: Simplified button search to use the known type="submit" ***
+        login_button = driver.find_element(By.CSS_SELECTOR, 'input[type="submit"]')
+        
         login_button.click()
         print("[DEBUG STEP 3] Login button clicked. Waiting for successful redirection.")
         
-        # 5. Verify successful login by waiting for the URL to change
-        # This is the standard way to confirm a successful login redirect.
+        # 5. Verify successful login
         WebDriverWait(driver, 10).until(
             EC.url_changes(LOGIN_URL) 
         )
@@ -82,27 +95,18 @@ def login_only(driver: WebDriver) -> str:
         print("[Selenium] Login successful.")
         return "successful login"
         
+    # Error handling remains the same...
     except TimeoutException:
-        # Check if the page shows an error message indicating failed login
-        # This is an optional check, customize based on your login page's error element
-        try:
-            # Look for a common error message element, e.g., one with the class 'error-message'
-            driver.find_element(By.CLASS_NAME, "error-message")
-            return "[Selenium ERROR] Login failed: Page shows an authentication error message."
-        except NoSuchElementException:
-            # If no error message is found, it was a general timeout (bad selectors or slow redirect)
-            return "[Selenium ERROR] Timeout: Failed to find login elements or post-login redirection timed out."
-            
+        error_msg = "[Selenium ERROR] Timeout: Failed to find elements or redirect after login. Check if URL changed."
+        return error_msg
     except NoSuchElementException as e:
-        error_msg = f"[Selenium ERROR] Element Missing: Cannot find expected element (username, password, or button). Error: {e.msg.splitlines()[0]}"
+        error_msg = f"[Selenium ERROR] Element Missing: Check selectors. Error: {e.msg.splitlines()[0]}"
         return error_msg
-        
     except WebDriverException as e:
-        error_msg = f"[Selenium ERROR] WebDriver/Network Issue: Failed to connect or browser crash. Error: {e.msg.splitlines()[0]}"
+        error_msg = f"[Selenium ERROR] WebDriver/Network Issue: {e.msg.splitlines()[0]}"
         return error_msg
-        
     except Exception as e:
-        error_msg = f"[Selenium ERROR] An unexpected error occurred: {e}"
+        error_msg = f"[Selenium ERROR] Unexpected Error: {e}"
         return error_msg
 
 
