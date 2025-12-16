@@ -15,10 +15,6 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # by a host environment (like Docker) or the shell itself.
 load_dotenv() 
 
-# --- 1. LOCAL SERVER CONFIGURATION (The Source of Truth) ---
-# NOTE: This data is not sensitive and can remain hardcoded or moved to a separate JSON/YAML file.
-
-
 def get_api_credentials():
     """
     Retrieves and validates required API environment variables from os.environ.
@@ -61,7 +57,7 @@ API_PAYLOAD = {
 }
 
 
-# --- 3. COMPARISON LOGIC FUNCTIONS (Unchanged) ---
+# --- 3. COMPARISON LOGIC FUNCTIONS ---
 
 def get_config_option_value(whmcs_product, name_key):
     """
