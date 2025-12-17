@@ -4,7 +4,7 @@ import os
 import sys
 from dotenv import load_dotenv # <-- New Import!
 import urllib3
-from portal_data import PORTAL_SERVER_CONFIG 
+from portal_data import fetch_portal_config
 
 # Suppress the SSL warning for development/testing if necessary
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -163,7 +163,7 @@ def make_whmcs_request():
             return
 
         # Success: Start analysis and comparison
-        analyze_and_compare(data, local_config=PORTAL_SERVER_CONFIG)
+        analyze_and_compare(data, local_config=fetch_portal_config(server_id))
 
     except requests.exceptions.RequestException as e:
         print(f"🚨 CONNECTION ERROR: Failed to reach the WHMCS API.")
