@@ -3,17 +3,15 @@ import sys
 from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 
 # Use WebDriver Manager to handle the correct Chrome driver version
 from webdriver_manager.chrome import ChromeDriverManager 
 
 # --- 1. Load Environment Variables ---
-#load_dotenv()
+load_dotenv()
 
 from selenium.webdriver.chrome.options import Options
 
