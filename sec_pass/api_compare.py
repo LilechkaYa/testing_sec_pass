@@ -4,7 +4,8 @@ import os
 import sys
 from dotenv import load_dotenv
 import urllib3
-from portal_data import PORTAL_SERVER_CONFIG 
+from portal_login import fetch_portal_config
+#from portal_data import PORTAL_SERVER_CONFIG 
 
 # Suppress the SSL warning for development/testing if necessary
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -14,6 +15,8 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # This is safe because load_dotenv() won't override variables already set
 # by a host environment (like Docker) or the shell itself.
 load_dotenv() 
+
+PORTAL_SERVER_CONFIG = fetch_portal_config("20227")
 
 def get_api_credentials():
     """
