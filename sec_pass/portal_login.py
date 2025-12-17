@@ -79,44 +79,51 @@ def get_td_value_generic(driver, key, key_in_th=True):
         return None
 
 def get_server_data(server_id: str, driver=None):
-    """Retrieve server data from the portal."""
+    """Retrieve server data from the portal and return the PORTAL_SERVER_CONFIG dictionary."""
     close_driver = False
     
-    # 1. Use existing driver or create a new one using your updated function
+    # 1. Use existing driver or create a new one
     if not driver:
-        # No arguments needed now as it uses os.environ internally
         driver = login_to_portal(keep_browser_open=False) 
         close_driver = True
 
     try:
-        # --- Server info page ---
+        # --- 1. Server info page ---
         url = f"https://portal.simplyhosting.com/admin/devicemanagement/device/info/id/{server_id}/"
         driver.get(url)
 
-        # Wait for the Production IPv4 row to appear
         WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.XPATH, "//tr[th[contains(., 'Production IPv4')]]/td"))
         )
 
-        results_dict_portal = {
-            "Server": server_id,
-            "ipv4": get_td_value_generic(driver, "Production IPv4", key_in_th=True),
-            "Label": get_td_value_generic(driver, "Label", key_in_th=True)
-        }
+        # Scrape Info Page fields
+        ipv4 = get_td_value_generic(driver, "Production IPv4", key_in_th=True)
+        label = get_td_value_generic(driver, "Label", key_in_th=True)
 
-        # --- Audit page ---
+        # --- 2. Audit page ---
         audit_url = f"https://portal.simplyhosting.com/admin/devicemanagement/audit/get/deviceId/{server_id}/"
         driver.get(audit_url)
 
-        # Wait for Audit page specific element
         WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.XPATH, "//tr[td[contains(., 'CPU Label')]]/td[2]"))
         )
 
-        for field in ["CPU Label", "Total RAM", "Total Storage"]:
-            results_dict_portal[field] = get_td_value_generic(driver, field, key_in_th=False)
+        # Scrape Audit Page fields
+        cpu = get_td_value_generic(driver, "CPU Label", key_in_th=False)
+        ram = get_td_value_generic(driver, "Total RAM", key_in_th=False)
+        disks = get_td_value_generic(driver, "Total Storage", key_in_th=False)
 
-        return results_dict_portal
+        # --- 3. Assemble and return the specific dictionary ---
+        PORTAL_SERVER_CONFIG = {
+            "ns1": label,
+            "dedicatedip": ipv4,
+            "cpu": cpu,
+            "ram": ram,
+            "disks": disks,
+            "server_id": server_id 
+        }
+
+        return PORTAL_SERVER_CONFIG
 
     except Exception as e:
         print(f"[Error] Failed to scrape server {server_id}: {e}")
@@ -129,31 +136,30 @@ def get_server_data(server_id: str, driver=None):
 
 def main():
     """
-    Entry point: Log in and scrape data for a single specific server.
+    Entry point: Log in and retrieve the PORTAL_SERVER_CONFIG for a specific server.
     """
     driver = None
-    # Replace this with your actual target Server ID
-    target_server_id = "29305" 
+    target_server_id = "20227" 
     
     try:
         print(f"--- Starting Portal Session for Server {target_server_id} ---")
         
         # 1. Login and get the live driver
-        # keep_browser_open=True allows you to see the result after the script ends
+        # We use keep_browser_open=True so you can inspect the portal if needed
         driver = login_to_portal(keep_browser_open=True)
         
-        # 2. Extract data for the single server
-        # We pass the authenticated driver directly to the scraper
-        print(f"Fetching data...")
-        server_data = get_server_data(target_server_id, driver=driver)
+        # 2. Extract data directly into the PORTAL_SERVER_CONFIG structure
+        print(f"Fetching data from portal pages...")
+        portal_config = get_server_data(target_server_id, driver=driver)
         
         # 3. Output the result
-        print("\n--- Scraped Data ---")
-        if server_data:
-            for key, value in server_data.items():
+        if portal_config:
+            print("\n--- Scraped PORTAL_SERVER_CONFIG ---")
+            for key, value in portal_config.items():
+                # This will now show your specific keys: ns1, dedicatedip, cpu, ram, disks
                 print(f"{key}: {value}")
         else:
-            print("Failed to retrieve data. Check the server ID or portal state.")
+            print(f"\n[!] Failed to retrieve data for Server ID {target_server_id}.")
 
     except Exception as e:
         print(f"\n--- FATAL SCRIPT ERROR ---")
