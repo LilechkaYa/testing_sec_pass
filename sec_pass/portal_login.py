@@ -68,35 +68,98 @@ def login_to_portal(keep_browser_open: bool = True):
         driver.quit()
         sys.exit(1)
 
+def get_td_value_generic(driver, key, key_in_th=True):
+    try:
+        if key_in_th:
+            td_element = driver.find_element(By.XPATH, f"//tr[th[contains(., '{key}')]]/td")
+        else:
+            td_element = driver.find_element(By.XPATH, f"//tr[td[contains(., '{key}')]]/td[2]")
+        return td_element.text.strip()
+    except:
+        return None
 
+def get_server_data(server_id: str, driver=None):
+    """Retrieve server data from the portal."""
+    close_driver = False
+    
+    # 1. Use existing driver or create a new one using your updated function
+    if not driver:
+        # No arguments needed now as it uses os.environ internally
+        driver = login_to_portal(keep_browser_open=False) 
+        close_driver = True
 
+    try:
+        # --- Server info page ---
+        url = f"https://portal.simplyhosting.com/admin/devicemanagement/device/info/id/{server_id}/"
+        driver.get(url)
+
+        # Wait for the Production IPv4 row to appear
+        WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located((By.XPATH, "//tr[th[contains(., 'Production IPv4')]]/td"))
+        )
+
+        results_dict_portal = {
+            "Server": server_id,
+            "ipv4": get_td_value_generic(driver, "Production IPv4", key_in_th=True),
+            "Label": get_td_value_generic(driver, "Label", key_in_th=True)
+        }
+
+        # --- Audit page ---
+        audit_url = f"https://portal.simplyhosting.com/admin/devicemanagement/audit/get/deviceId/{server_id}/"
+        driver.get(audit_url)
+
+        # Wait for Audit page specific element
+        WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located((By.XPATH, "//tr[td[contains(., 'CPU Label')]]/td[2]"))
+        )
+
+        for field in ["CPU Label", "Total RAM", "Total Storage"]:
+            results_dict_portal[field] = get_td_value_generic(driver, field, key_in_th=False)
+
+        return results_dict_portal
+
+    except Exception as e:
+        print(f"[Error] Failed to scrape server {server_id}: {e}")
+        return None
+
+    finally:
+        # Only close if this function was the one that opened the driver
+        if close_driver and driver:
+            driver.quit()
 
 def main():
     """
-    Entry point that retrieves a live, logged-in driver.
+    Entry point: Log in and scrape data for a single specific server.
     """
     driver = None
+    # Replace this with your actual target Server ID
+    target_server_id = "29305" 
+    
     try:
-        print("--- Starting Portal Session ---")
+        print(f"--- Starting Portal Session for Server {target_server_id} ---")
         
-        # 1. This one call now handles setup, credentials, and login
-        # Set keep_browser_open=True to ensure the window stays alive for scraping
+        # 1. Login and get the live driver
+        # keep_browser_open=True allows you to see the result after the script ends
         driver = login_to_portal(keep_browser_open=True)
         
-        # 2. If we reached this line, the driver is logged in
-        print("\n--- Success ---")
-        print(f"Driver is ready. Current URL: {driver.current_url}")
+        # 2. Extract data for the single server
+        # We pass the authenticated driver directly to the scraper
+        print(f"Fetching data...")
+        server_data = get_server_data(target_server_id, driver=driver)
         
-        # 3. SCRAPING STARTS HERE
-        # You can now pass 'driver' to other functions:
-        # data = perform_scraping(driver)
+        # 3. Output the result
+        print("\n--- Scraped Data ---")
+        if server_data:
+            for key, value in server_data.items():
+                print(f"{key}: {value}")
+        else:
+            print("Failed to retrieve data. Check the server ID or portal state.")
 
     except Exception as e:
         print(f"\n--- FATAL SCRIPT ERROR ---")
         print(f"The process failed: {e}")
     
-    print("Script finished. Browser session remains active.")
+    print("\nScript finished. Browser session remains active.")
 
 if __name__ == "__main__":
     main()
-        
