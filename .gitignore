@@ -4,3 +4,5 @@ pycache/*.pyc
 .DS_Store
 venv
 notes
+__pycache__/
+*.pyc
