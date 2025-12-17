@@ -15,12 +15,6 @@ from webdriver_manager.chrome import ChromeDriverManager
 # --- 1. Load Environment Variables ---
 load_dotenv()
 
-# Retrieve constants from environment variables
-#LOGIN_URL = os.getenv("LOGIN_URL")
-#PORTAL_USER = os.getenv("PORTAL_USER")
-#PORTAL_PASS = os.getenv("PORTAL_PASS")
-
-
 def get_portal_credentials():
     try:
         credentials = {
@@ -44,11 +38,6 @@ PORTAL_CREDENTIALS = get_portal_credentials()
 LOGIN_URL = PORTAL_CREDENTIALS["LOGIN_URL"]
 PORTAL_USER = PORTAL_CREDENTIALS["PORTAL_USER"]
 PORTAL_PASS = PORTAL_CREDENTIALS["PORTAL_PASS"]
-
-
-# Temporary check to confirm .env loaded successfully
-#print(f"DEBUG: URL loaded is {LOGIN_URL}")
-
 
 def login_only(driver: WebDriver) -> str:
     """
@@ -93,9 +82,9 @@ def login_only(driver: WebDriver) -> str:
         )
         
         print("[Selenium] Login successful.")
-        return "successful login"
+        return "successful login" # <-----------return driver here ?
         
-    # Error handling remains the same...
+    # Error handling
     except TimeoutException:
         error_msg = "[Selenium ERROR] Timeout: Failed to find elements or redirect after login. Check if URL changed."
         return error_msg
@@ -108,6 +97,8 @@ def login_only(driver: WebDriver) -> str:
     except Exception as e:
         error_msg = f"[Selenium ERROR] Unexpected Error: {e}"
         return error_msg
+
+
 
 
 def main():
@@ -137,6 +128,7 @@ def main():
     
     finally:
         # 4. Clean up
+        #print("Ready to scrape")
         if driver:
             driver.quit()
             print("Driver closed.")
