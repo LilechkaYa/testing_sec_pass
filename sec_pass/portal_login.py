@@ -13,125 +13,92 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException,
 from webdriver_manager.chrome import ChromeDriverManager 
 
 # --- 1. Load Environment Variables ---
-load_dotenv()
+#load_dotenv()
 
-def get_portal_credentials():
+from selenium.webdriver.chrome.options import Options
+
+def login_to_portal(keep_browser_open: bool = True):
+    """
+    Handles credentials fetching, driver setup, and login.
+    Returns the live WebDriver object on success, or raises an Exception on failure.
+    """
+    # 1. Fetch credentials using os.environ (Fail-fast)
     try:
-        credentials = {
-            "LOGIN_URL": os.environ["LOGIN_URL"],
-            "PORTAL_USER": os.environ["PORTAL_USER"],
-            "PORTAL_PASS": os.environ["PORTAL_PASS"],
-        }
-        return credentials
+        url = os.environ["LOGIN_URL"]
+        user = os.environ["PORTAL_USER"]
+        pw = os.environ["PORTAL_PASS"]
     except KeyError as e:
-        # Exit if any required variable is missing
         print(f"FATAL ERROR: Environment variable {e} is not set.")
-        print("ACTION: Ensure your local .env file is present and correctly populated.")
         sys.exit(1)
 
-
-# --- 2. API CREDENTIALS LOADING ---
-# Load and validate credentials right away. If any are missing, the script exits here.
-PORTAL_CREDENTIALS = get_portal_credentials()
-
-# Map the credentials into the main variables for clearer use (optional, but clean)
-LOGIN_URL = PORTAL_CREDENTIALS["LOGIN_URL"]
-PORTAL_USER = PORTAL_CREDENTIALS["PORTAL_USER"]
-PORTAL_PASS = PORTAL_CREDENTIALS["PORTAL_PASS"]
-
-def login_only(driver: WebDriver) -> str:
-    """
-    Handles the login workflow only, with detailed debug prints.
-    (Updated to use By.ID selectors based on HTML analysis)
-    """
-    if not all([LOGIN_URL, PORTAL_USER, PORTAL_PASS]):
-        return "[CONFIG ERROR] Missing variables in .env."
-        
-    print(f"[Selenium] Navigating to login page: {LOGIN_URL}")
+    # 2. Setup Driver with Options
+    options = Options()
+    if keep_browser_open:
+        options.add_experimental_option("detach", True)
+    
+    # Initialize the driver
+    service = ChromeService(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=options)
+    
+    print(f"[Selenium] Navigating to: {url}")
     
     try:
-        # 1. Navigate to the login page
-        driver.get(LOGIN_URL)
-        #print("[DEBUG STEP 1] Successfully navigated to URL. Waiting for form elements.")
+        # 3. Navigate and Wait
+        driver.get(url)
         
-        # 2. Wait for the login form elements to be present
-        # *** MODIFICATION 1: Changed By.NAME, "username" to By.ID, "LoginForm_username" ***
+        # Wait for the specific ID we found in your HTML
         WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.ID, "LoginForm_username"))
         )
         
-        #print("[DEBUG STEP 2] Form elements found. Entering credentials.")
+        # 4. Enter Credentials
+        driver.find_element(By.ID, "LoginForm_username").send_keys(user)
+        driver.find_element(By.ID, "LoginForm_password").send_keys(pw)
         
-        # 3. Enter credentials
-        # *** MODIFICATION 2: Changed By.NAME, "username" to By.ID, "LoginForm_username" ***
-        driver.find_element(By.ID, "LoginForm_username").send_keys(PORTAL_USER)
+        # 5. Click Login (using the name 'yt0' from your HTML)
+        driver.find_element(By.NAME, "yt0").click()
         
-        # *** MODIFICATION 3: Changed By.NAME, "password" to By.ID, "LoginForm_password" ***
-        driver.find_element(By.ID, "LoginForm_password").send_keys(PORTAL_PASS)
+        # 6. Verify Redirection
+        WebDriverWait(driver, 10).until(EC.url_changes(url))
         
-        # 4. Find and click the login button
-        # *** MODIFICATION 4: Simplified button search to use the known type="submit" ***
-        login_button = driver.find_element(By.CSS_SELECTOR, 'input[type="submit"]')
-        
-        login_button.click()
-        #print("[DEBUG STEP 3] Login button clicked. Waiting for successful redirection.")
-        
-        # 5. Verify successful login
-        WebDriverWait(driver, 10).until(
-            EC.url_changes(LOGIN_URL) 
-        )
-        
-        print("[Selenium] Login successful.")
-        return "successful login" # <-----------return driver here ?
-        
-    # Error handling
-    except TimeoutException:
-        error_msg = "[Selenium ERROR] Timeout: Failed to find elements or redirect after login. Check if URL changed."
-        return error_msg
-    except NoSuchElementException as e:
-        error_msg = f"[Selenium ERROR] Element Missing: Check selectors. Error: {e.msg.splitlines()[0]}"
-        return error_msg
-    except WebDriverException as e:
-        error_msg = f"[Selenium ERROR] WebDriver/Network Issue: {e.msg.splitlines()[0]}"
-        return error_msg
+        print("[Selenium] Login successful. Returning live driver.")
+        return driver  # driver returned for scraper
+
     except Exception as e:
-        error_msg = f"[Selenium ERROR] Unexpected Error: {e}"
-        return error_msg
+        # If login fails, we SHOULD close the driver to prevent ghost processes
+        print(f"Login failed: {e}")
+        driver.quit()
+        sys.exit(1)
 
 
 
 
 def main():
     """
-    Sets up the WebDriver and calls the login function. 
-    This is the entry point of the script.
+    Entry point that retrieves a live, logged-in driver.
     """
     driver = None
     try:
-        # 1. Setup WebDriver using WebDriverManager
-        print("--- Setting up Chrome WebDriver ---")
-        service = ChromeService(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service)
+        print("--- Starting Portal Session ---")
         
-        # 2. Call the login function
-        print("--- Starting Login Process ---")
-        login_status = login_only(driver)
+        # 1. This one call now handles setup, credentials, and login
+        # Set keep_browser_open=True to ensure the window stays alive for scraping
+        driver = login_to_portal(keep_browser_open=True)
         
-        # 3. Output Result
-        print("\n--- Final Login Result ---")
-        print(f"Status: {login_status}")
+        # 2. If we reached this line, the driver is logged in
+        print("\n--- Success ---")
+        print(f"Driver is ready. Current URL: {driver.current_url}")
+        
+        # 3. SCRAPING STARTS HERE
+        # You can now pass 'driver' to other functions:
+        # data = perform_scraping(driver)
 
     except Exception as e:
         print(f"\n--- FATAL SCRIPT ERROR ---")
-        print(f"An unhandled error occurred during driver setup or script execution: {e}")
-        login_status = "Driver Setup Failed"
+        print(f"The process failed: {e}")
     
-    finally:
-        # 4. Clean up
-        #print("Ready to scrape")
-        if driver:
-            driver.quit()
-            print("Driver closed.")
-        
+    print("Script finished. Browser session remains active.")
+
 if __name__ == "__main__":
     main()
+        
