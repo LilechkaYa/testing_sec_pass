@@ -47,7 +47,7 @@ PORTAL_PASS = PORTAL_CREDENTIALS["PORTAL_PASS"]
 
 
 # Temporary check to confirm .env loaded successfully
-print(f"DEBUG: URL loaded is {LOGIN_URL}")
+#print(f"DEBUG: URL loaded is {LOGIN_URL}")
 
 
 def login_only(driver: WebDriver) -> str:
@@ -63,7 +63,7 @@ def login_only(driver: WebDriver) -> str:
     try:
         # 1. Navigate to the login page
         driver.get(LOGIN_URL)
-        print("[DEBUG STEP 1] Successfully navigated to URL. Waiting for form elements.")
+        #print("[DEBUG STEP 1] Successfully navigated to URL. Waiting for form elements.")
         
         # 2. Wait for the login form elements to be present
         # *** MODIFICATION 1: Changed By.NAME, "username" to By.ID, "LoginForm_username" ***
@@ -71,7 +71,7 @@ def login_only(driver: WebDriver) -> str:
             EC.presence_of_element_located((By.ID, "LoginForm_username"))
         )
         
-        print("[DEBUG STEP 2] Form elements found. Entering credentials.")
+        #print("[DEBUG STEP 2] Form elements found. Entering credentials.")
         
         # 3. Enter credentials
         # *** MODIFICATION 2: Changed By.NAME, "username" to By.ID, "LoginForm_username" ***
@@ -85,7 +85,7 @@ def login_only(driver: WebDriver) -> str:
         login_button = driver.find_element(By.CSS_SELECTOR, 'input[type="submit"]')
         
         login_button.click()
-        print("[DEBUG STEP 3] Login button clicked. Waiting for successful redirection.")
+        #print("[DEBUG STEP 3] Login button clicked. Waiting for successful redirection.")
         
         # 5. Verify successful login
         WebDriverWait(driver, 10).until(
