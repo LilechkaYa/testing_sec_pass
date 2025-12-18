@@ -1,4 +1,4 @@
-# Use a recent Python version compatible with all modern packages
+#Use a recent Python version compatible with all modern packages
 FROM python:3.11-slim
 
 # Set working directory inside the container
