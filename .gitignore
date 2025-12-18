@@ -3,6 +3,7 @@ pycache/*.pyc
 *.log
 .DS_Store
 venv
+venv_test_attrs/
 notes
 __pycache__/
 *.pyc
