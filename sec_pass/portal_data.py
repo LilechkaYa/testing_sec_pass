@@ -12,10 +12,9 @@ from webdriver_manager.chrome import ChromeDriverManager
 # --- 1. Load Environment Variables ---
 load_dotenv()
 
-def login_to_portal(keep_browser_open: bool = True):
+def login_to_portal(keep_browser_open: bool = False):
     """
-    Handles credentials fetching, driver setup, and login.
-    Returns the live WebDriver object on success.
+    Handles credentials fetching, driver setup, and login in Headless mode.
     """
     try:
         url = os.environ["LOGIN_URL"]
@@ -26,18 +25,23 @@ def login_to_portal(keep_browser_open: bool = True):
         sys.exit(1)
 
     options = Options()
-    if keep_browser_open:
-        options.add_experimental_option("detach", True)
+    # Headless flags for Linux
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1920,1080")
     
     service = ChromeService(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
     
-    print(f"[Selenium] Navigating to login portal...")
+    print(f"[Selenium] Navigating to login portal (Headless)...")
     
     try:
         driver.get(url)
         
-        WebDriverWait(driver, 10).until(
+        # Increased timeout to 15s for slower server environments
+        WebDriverWait(driver, 15).until(
             EC.presence_of_element_located((By.ID, "LoginForm_username"))
         )
         
@@ -45,7 +49,7 @@ def login_to_portal(keep_browser_open: bool = True):
         driver.find_element(By.ID, "LoginForm_password").send_keys(pw)
         driver.find_element(By.NAME, "yt0").click()
         
-        WebDriverWait(driver, 10).until(EC.url_changes(url))
+        WebDriverWait(driver, 15).until(EC.url_changes(url))
         
         print("[Selenium] Login successful.")
         return driver
@@ -57,6 +61,7 @@ def login_to_portal(keep_browser_open: bool = True):
         return None
 
 def get_td_value_generic(driver, key, key_in_th=True):
+    """Extracts text from a table based on a key string."""
     try:
         if key_in_th:
             td_element = driver.find_element(By.XPATH, f"//tr[th[contains(., '{key}')]]/td")
@@ -66,25 +71,21 @@ def get_td_value_generic(driver, key, key_in_th=True):
     except:
         return None
 
-def get_server_data(server_id: str, driver=None):
+def get_server_data(server_id: str, driver):
     """
-    Navigates through portal pages and assembles the PORTAL_SERVER_CONFIG.
+    The core scraping logic. Navigates to Info and Audit pages.
     """
-    close_driver = False
-    if not driver:
-        driver = login_to_portal(keep_browser_open=False) 
-        close_driver = True
-
     if not driver:
         return None
 
     try:
         # --- 1. Server info page ---
-        url = f"https://portal.simplyhosting.com/admin/devicemanagement/device/info/id/{server_id}/"
-        driver.get(url)
+        info_url = f"https://portal.simplyhosting.com/admin/devicemanagement/device/info/id/{server_id}/"
+        driver.get(info_url)
 
+        # Wait for the table to load
         WebDriverWait(driver, 20).until(
-            EC.presence_of_element_located((By.XPATH, "//tr[th[contains(., 'Production IPv4')]]/td"))
+            EC.presence_of_element_located((By.XPATH, "//tr[th[contains(., 'Production IPv4')]]"))
         )
 
         ipv4 = get_td_value_generic(driver, "Production IPv4", key_in_th=True)
@@ -95,14 +96,14 @@ def get_server_data(server_id: str, driver=None):
         driver.get(audit_url)
 
         WebDriverWait(driver, 20).until(
-            EC.presence_of_element_located((By.XPATH, "//tr[td[contains(., 'CPU Label')]]/td[2]"))
+            EC.presence_of_element_located((By.XPATH, "//tr[td[contains(., 'CPU Label')]]"))
         )
 
         cpu = get_td_value_generic(driver, "CPU Label", key_in_th=False)
         ram = get_td_value_generic(driver, "Total RAM", key_in_th=False)
         disks = get_td_value_generic(driver, "Total Storage", key_in_th=False)
 
-        PORTAL_SERVER_CONFIG = {
+        return {
             "ns1": label,
             "dedicatedip": ipv4,
             "cpu": cpu,
@@ -111,26 +112,23 @@ def get_server_data(server_id: str, driver=None):
             "server_id": server_id 
         }
 
-        return PORTAL_SERVER_CONFIG
-
     except Exception as e:
         print(f"[Error] Scraping failed for {server_id}: {e}")
         return None
-    finally:
-        if close_driver and driver:
-            driver.quit()
 
 def fetch_portal_config(server_id: str):
     """
-    THE ENTRY POINT FOR EXTERNAL MODULES.
-    Call this function to get the PORTAL_SERVER_CONFIG dictionary.
+    ENTRY POINT FOR EXTERNAL MODULES.
     """
     print(f"--- Fetching Portal Config for Server {server_id} ---")
     
-    # We log in once here
-    driver = login_to_portal(keep_browser_open=True)
+    driver = login_to_portal(keep_browser_open=False)
     
     if driver:
-        config = get_server_data(server_id, driver=driver)
-        return config
+        try:
+            config = get_server_data(server_id, driver)
+            return config
+        finally:
+            # Critical for Linux: Always kill the process
+            driver.quit()
     return None
