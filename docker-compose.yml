@@ -2,6 +2,7 @@ version: '3.9'
 
 services:
   testing_sec_pass:
+    image: testing_sec_pass
     build:
       context: .
       dockerfile: Dockerfile

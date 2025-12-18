@@ -1,0 +1,27 @@
+# Environment / secrets
+.env
+
+# Python virtual environments (host-only)
+venv/
+venv_test_attrs/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Git
+.git/
+.gitignore
+
+# Editor / OS junk
+.DS_Store
+.idea/
+.vscode/
+
+# Logs
+*.log
+
+# Misc backups
+*.bak
