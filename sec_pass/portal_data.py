@@ -7,14 +7,14 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager 
 
 # --- 1. Load Environment Variables ---
 load_dotenv()
 
 def login_to_portal(keep_browser_open: bool = False):
     """
-    Handles credentials fetching, driver setup, and login in Headless mode.
+    Handles credentials fetching, driver setup, and login in Headless mode
+    using system-installed Chromium.
     """
     try:
         url = os.environ["LOGIN_URL"]
@@ -25,19 +25,26 @@ def login_to_portal(keep_browser_open: bool = False):
         sys.exit(1)
 
     options = Options()
-    # Headless flags for Linux
+    # Headless flags for Linux/Container stability
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
     
-    service = ChromeService(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=options)
+    # Path to the Chromium binary installed via apt-get
+    options.binary_location = "/usr/bin/chromium"
+
+    # Use the ChromeDriver binary installed via apt-get (usually /usr/bin/chromedriver)
+    # This replaces ChromeDriverManager().install()
+    service = ChromeService(executable_path="/usr/bin/chromedriver")
     
-    print(f"[Selenium] Navigating to login portal (Headless)...")
+    print(f"[Selenium] Starting Headless Chromium...")
     
+    driver = None
     try:
+        driver = webdriver.Chrome(service=service, options=options)
+        print(f"[Selenium] Navigating to login portal...")
         driver.get(url)
         
         # Increased timeout to 15s for slower server environments
@@ -68,7 +75,7 @@ def get_td_value_generic(driver, key, key_in_th=True):
         else:
             td_element = driver.find_element(By.XPATH, f"//tr[td[contains(., '{key}')]]/td[2]")
         return td_element.text.strip()
-    except:
+    except Exception:
         return None
 
 def get_server_data(server_id: str, driver):
@@ -83,7 +90,7 @@ def get_server_data(server_id: str, driver):
         info_url = f"https://portal.simplyhosting.com/admin/devicemanagement/device/info/id/{server_id}/"
         driver.get(info_url)
 
-        # Wait for the table to load
+        # Wait for the table row to load
         WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.XPATH, "//tr[th[contains(., 'Production IPv4')]]"))
         )
