@@ -22,4 +22,4 @@ RUN pip install --upgrade pip \
 COPY . .
 
 # Set the command to run your tester.py script
-CMD ["python", "sec_pass/tester.py"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "app:app"]

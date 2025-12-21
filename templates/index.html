@@ -1,0 +1,18 @@
+<!DOSCTYPE html>
+<html>
+<head><title>Second Pass Tool</title></head>
+<body style="font-family: sans-serif; padding: 40px;">
+    <h2>Configuration Check</h2>
+    <form method="POST">
+        <input type="text" name="server_id" placeholder="Enter 5-digit ID" required>
+        <button type="submit">Check Server</button>
+    </form>
+    
+    {% if output %}
+    <hr>
+    <h3>Results:</h3>
+    <pre style="background: #f4f4f4; padding: 15px; border: 1px solid #ccc;">{{ output }}</pre>
+    {% endif %}
+</body>
+</html>
+

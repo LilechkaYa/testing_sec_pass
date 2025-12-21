@@ -5,7 +5,7 @@ import sys
 import re
 from dotenv import load_dotenv
 import urllib3
-from portal_data import fetch_portal_config
+from sec_pass.portal_data import fetch_portal_config
 
 # Suppress the SSL warning for development/testing if necessary
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -33,7 +33,13 @@ API_IDENTIFIER = API_CREDENTIALS["API_IDENTIFIER"]
 API_SECRET = API_CREDENTIALS["API_SECRET"]
 
 # --- Interactive Input ---
-server_id = input("Enter the 5-digit Domain Number (server_id) to check: ")
+server_id = None
+
+def set_server_id(sid):
+    global server_id
+    global API_PAYLOAD
+    server_id = sid
+    API_PAYLOAD['domain'] = sid #Updated the payload with the new ID
 
 # --- API Request Setup ---
 API_PAYLOAD = {
