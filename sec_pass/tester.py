@@ -2,7 +2,7 @@ import requests
 import json
 import os
 import sys
-from dotenv import load_dotenv # <-- New Import!
+from dotenv import load_dotenv
 import urllib3
 from portal_data import fetch_portal_config
 
@@ -10,20 +10,10 @@ from portal_data import fetch_portal_config
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # --- CONFIGURATION INITIALIZATION ---
-# Load variables from the .env file into the environment (os.environ).
-# This is safe because load_dotenv() won't override variables already set
-# by a host environment (like Docker) or the shell itself.
-load_dotenv() 
+load_dotenv()
 
-# --- 1. LOCAL SERVER CONFIGURATION (The Source of Truth) ---
-# NOTE: This data is not sensitive and can remain hardcoded or moved to a separate JSON/YAML file.
-
-
+# --- 1. API CREDENTIALS ---
 def get_api_credentials():
-    """
-    Retrieves and validates required API environment variables from os.environ.
-    The source is either the .env file (local) or the Docker host (production).
-    """
     try:
         credentials = {
             "WHMCS_API_URL": os.environ["WHMCS_API_URL"],
@@ -32,21 +22,14 @@ def get_api_credentials():
         }
         return credentials
     except KeyError as e:
-        # Exit if any required variable is missing
         print(f"FATAL ERROR: Environment variable {e} is not set.")
-        print("ACTION: Ensure your local .env file is present and correctly populated.")
         sys.exit(1)
 
-
-# --- 2. API CREDENTIALS LOADING ---
-# Load and validate credentials right away. If any are missing, the script exits here.
 API_CREDENTIALS = get_api_credentials()
 
-# Map the credentials into the main variables for clearer use (optional, but clean)
 WHMCS_API_URL = API_CREDENTIALS["WHMCS_API_URL"]
 API_IDENTIFIER = API_CREDENTIALS["API_IDENTIFIER"]
 API_SECRET = API_CREDENTIALS["API_SECRET"]
-
 
 # --- Interactive Input ---
 server_id = input("Enter the 5-digit Domain Number (server_id) to check: ")
@@ -60,50 +43,50 @@ API_PAYLOAD = {
     'domain': server_id
 }
 
+# --- HELPER FUNCTIONS ---
 
-# --- 3. COMPARISON LOGIC FUNCTIONS (Unchanged) ---
+def normalize_ns1(value):
+    """
+    Normalizes NS1 values by comparing only the part before '_'
+    Example: HV1266_235 -> HV1266
+    """
+    if not value:
+        return ""
+    return str(value).split("_", 1)[0].lower().strip()
+
 
 def get_config_option_value(whmcs_product, name_key):
-    """
-    Safely extracts a value from the nested configoptions structure using the 'option' key.
-    """
     config_list = whmcs_product.get('configoptions', {}).get('configoption', [])
-    
+
     if isinstance(config_list, dict):
         config_list = [config_list]
-        
+
     for option in config_list:
         if option.get('option', '').lower() == name_key.lower():
             return option.get('value', 'N/A')
-            
+
     return "N/A (Key Not Found)"
 
 
 def analyze_and_compare(whmcs_data, local_config):
-    """
-    Parses WHMCS data, determines server type, and compares required fields.
-    """
     discrepancies = {}
-    
+
     product_list = whmcs_data.get('products', {}).get('product', [])
     if not product_list:
         print("❌ ERROR: No active product found for this domain/server ID in WHMCS.")
         return
 
-    #active_product = next((p for p in product_list if p.get('status') == 'Active'), product_list[0])
     whmcs_product = product_list[0]
-    
-    #print(f"Comparing Product ID: {whmcs_product.get('id')} (Status: {whmcs_product.get('status', 'N/A')})")
-    
+
     ns1_value = whmcs_product.get('ns1', 'N/A')
-    
+
     if ns1_value.lower().startswith("hv"):
         server_type = "VIRTUAL"
-        fields_to_check = ["ns1", "dedicatedip"] 
+        fields_to_check = ["ns1", "dedicatedip"]
     else:
         server_type = "DEDICATED"
         fields_to_check = ["ns1", "dedicatedip", "cpu", "ram", "disks"]
-        
+
     print(f"\n--- CONFIGURATION AUDIT: {server_id} (Type: {server_type}) ---")
     print("-" * 50)
 
@@ -112,12 +95,20 @@ def analyze_and_compare(whmcs_data, local_config):
         whmcs_value = 'N/A'
 
         if field in ["ns1", "dedicatedip"]:
-            whmcs_value = whmcs_product.get(field, 'N/A').strip(', ') 
-        
+            whmcs_value = whmcs_product.get(field, 'N/A').strip(', ')
+
         elif field in ["cpu", "ram", "disks"]:
             whmcs_value = get_config_option_value(whmcs_product, field)
 
-        if str(whmcs_value).lower().strip() != str(local_value).lower().strip():
+        # --- NORMALIZED COMPARISON ---
+        if field == "ns1":
+            whmcs_compare = normalize_ns1(whmcs_value)
+            local_compare = normalize_ns1(local_value)
+        else:
+            whmcs_compare = str(whmcs_value).lower().strip()
+            local_compare = str(local_value).lower().strip()
+
+        if whmcs_compare != local_compare:
             discrepancies[field] = {
                 "local": local_value,
                 "whmcs": whmcs_value
@@ -131,14 +122,11 @@ def analyze_and_compare(whmcs_data, local_config):
         print("🎉 RESULT: All required configuration fields match the local expectation!")
     else:
         print("-" * 50)
-        print(f"⚠️ RESULT: Found {len(discrepancies)} critical discrepancies. Please double check server configuration.")
+        print(f"⚠️ RESULT: Found {len(discrepancies)} critical discrepancies.")
 
 
-# --- 4. MAIN EXECUTION (Unchanged) ---
+# --- MAIN EXECUTION ---
 def make_whmcs_request():
-    """
-    Handles the API request and error checking.
-    """
     if not server_id:
         print("ERROR: Domain Name cannot be empty.")
         return
@@ -146,30 +134,36 @@ def make_whmcs_request():
     print(f"\n--- Attempting direct connection to WHMCS API ---")
 
     try:
-        # Make the API request
-        # Note: 'verify=False' is used due to the urllib3 disable_warnings call above
-        response = requests.post(WHMCS_API_URL, data=API_PAYLOAD, timeout=20, verify=False) 
-        response.raise_for_status() # Raises an HTTPError for bad responses (4xx or 5xx)
-        
+        response = requests.post(
+            WHMCS_API_URL,
+            data=API_PAYLOAD,
+            timeout=20,
+            verify=False
+        )
+        response.raise_for_status()
+
         data = response.json()
 
         if data.get('result') == 'error':
-            error_message = data.get('message', 'Unknown API Error')
-            print(f"🚨 WHMCS API ERROR: {error_message}")
+            print(f"🚨 WHMCS API ERROR: {data.get('message', 'Unknown API Error')}")
             return
-        
+
         if data.get('totalresults', 0) == 0:
             print(f"❌ SUCCESSFUL CONNECTION, but no results found for domain: {server_id}")
             return
 
-        # Success: Start analysis and comparison
-        analyze_and_compare(data, local_config=fetch_portal_config(server_id))
+        local_config = fetch_portal_config(server_id)
+        if local_config is None:
+            print("❌ ERROR: Failed to fetch portal configuration.")
+            return
+
+        analyze_and_compare(data, local_config=local_config)
 
     except requests.exceptions.RequestException as e:
         print(f"🚨 CONNECTION ERROR: Failed to reach the WHMCS API.")
         print(f"Error details: {e}")
-        print("\nACTION REQUIRED: Check URL and confirm your current IP is still whitelisted by WHMCS.")
 
 
 if __name__ == "__main__":
     make_whmcs_request()
+
