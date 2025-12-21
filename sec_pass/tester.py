@@ -2,6 +2,7 @@ import requests
 import json
 import os
 import sys
+import re
 from dotenv import load_dotenv
 import urllib3
 from portal_data import fetch_portal_config
@@ -46,13 +47,28 @@ API_PAYLOAD = {
 # --- HELPER FUNCTIONS ---
 
 def normalize_ns1(value):
-    """
-    Normalizes NS1 values by comparing only the part before '_'
-    Example: HV1266_235 -> HV1266
-    """
+    """Compare only the part before '_'"""
     if not value:
         return ""
     return str(value).split("_", 1)[0].lower().strip()
+
+
+def normalize_ram(value):
+    """
+    Normalizes RAM values to '<number>g'
+    Examples:
+      64G -> 64g
+      64GB -> 64g
+      64GB DDR5 -> 64g
+    """
+    if not value:
+        return ""
+
+    match = re.search(r"(\d+)", str(value))
+    if not match:
+        return ""
+
+    return f"{match.group(1)}g"
 
 
 def get_config_option_value(whmcs_product, name_key):
@@ -104,6 +120,11 @@ def analyze_and_compare(whmcs_data, local_config):
         if field == "ns1":
             whmcs_compare = normalize_ns1(whmcs_value)
             local_compare = normalize_ns1(local_value)
+
+        elif field == "ram":
+            whmcs_compare = normalize_ram(whmcs_value)
+            local_compare = normalize_ram(local_value)
+
         else:
             whmcs_compare = str(whmcs_value).lower().strip()
             local_compare = str(local_value).lower().strip()
