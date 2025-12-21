@@ -1,4 +1,5 @@
 .env
+.env.bak
 pycache/*.pyc
 *.log
 .DS_Store
