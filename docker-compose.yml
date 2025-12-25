@@ -4,6 +4,11 @@ services:
   testing_sec_pass:
     build: .
     container_name: testing_sec_pass_app
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    environment:
+      - PYTHONUNBUFFERED=1
     env_file:
       - .env
     # We run Gunicorn here
