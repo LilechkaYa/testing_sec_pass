@@ -4,14 +4,14 @@ services:
   testing_sec_pass:
     build: .
     container_name: testing_sec_pass_app
-    volumes:
-      - ./:/app
     env_file:
       - .env
     # We run Gunicorn here
-    command: gunicorn --timeout 300 --bind 0.0.0.0:8000 app:app
+    command: gunicorn --workers 3 --timeout 120 --bind 0.0.0.0:8000 app:app
     expose:
       - "8000"
+    restart: always
+
   nginx:
     image: nginx:latest
     container_name: testing_sec_pass_nginx
@@ -21,3 +21,4 @@ services:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf
     depends_on:
       - testing_sec_pass
+    restart: always

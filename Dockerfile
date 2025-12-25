@@ -7,19 +7,17 @@ WORKDIR /app
 # 1. Install System Dependencies (Chromium + Driver)
 # We install chromium-driver here so it matches the browser version exactly
 RUN apt-get update && apt-get install -y \
-    wget \
-    unzip \
-    chromium \
-    chromium-driver \
+    gcc \
+    libxml2-dev \
+    libxslt-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. Python Setup
 COPY requirements.txt .
-RUN pip install --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # 3. Project Files
 COPY . .
 
 # Set the command to run your tester.py script
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "app:app"]
+CMD ["gunicorn", "--workers", "3", "--timeout", "120", "--bind", "0.0.0.0:8000", "app:app"]
