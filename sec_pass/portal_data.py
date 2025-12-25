@@ -2,6 +2,7 @@ import os
 import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
+from concurrent.futures import ThreadPoolExecutor # Needed for parallel speed
 
 load_dotenv()
 
@@ -17,7 +18,6 @@ def login_to_portal():
 
     print("[Requests] Attempting fresh login...", flush=True)
     
-    # 1. GET the login page to grab the hidden CSRF token
     try:
         response = session.get(url, timeout=10)
         soup = BeautifulSoup(response.text, 'lxml')
@@ -29,7 +29,6 @@ def login_to_portal():
         
         csrf_token = csrf_input['value']
 
-        # 2. Build the payload
         payload = {
             'YII_CSRF_TOKEN': csrf_token,
             'LoginForm[username]': user,
@@ -37,7 +36,6 @@ def login_to_portal():
             'yt0': 'Login'
         }
 
-        # 3. POST the login data
         login_response = session.post(url, data=payload, timeout=10)
         
         if "logout" in login_response.text.lower():
@@ -66,27 +64,33 @@ def get_td_value_from_html(html, key, key_in_th=True):
 def fetch_portal_config(server_id: str):
     global _LOGGED_IN
     
-    # --- SESSION CACHE LOGIC ---
-    # Only login if we haven't already in this container's lifetime
     if not _LOGGED_IN:
         if not login_to_portal():
             return None
     else:
         print(f"[Requests] Reusing existing session for server {server_id}", flush=True)
 
-    # URL 1: Server Info
+    # URLs to fetch
     info_url = f"https://portal.simplyhosting.com/admin/devicemanagement/device/info/id/{server_id}/"
-    info_res = session.get(info_url, timeout=10)
-    
-    # AUTO-RETRY: If the session expired, the portal redirects to login page
-    if "LoginForm" in info_res.text:
+    audit_url = f"https://portal.simplyhosting.com/admin/devicemanagement/audit/get/deviceId/{server_id}/"
+
+    # --- PARALLEL FETCHING START ---
+    # Fetching both URLs at the same time cuts wait time in half
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        # Submit both tasks
+        future_info = executor.submit(session.get, info_url, timeout=10)
+        future_audit = executor.submit(session.get, audit_url, timeout=10)
+        
+        # Get results
+        info_res = future_info.result()
+        audit_res = future_audit.result()
+    # --- PARALLEL FETCHING END ---
+
+    # AUTO-RETRY: If the session expired
+    if "LoginForm" in info_res.text or "LoginForm" in audit_res.text:
         print("[Requests] Session expired. Re-authenticating...")
         _LOGGED_IN = False
-        return fetch_portal_config(server_id) # Recursive call to re-login and try again
-
-    # URL 2: Audit Data
-    audit_url = f"https://portal.simplyhosting.com/admin/devicemanagement/audit/get/deviceId/{server_id}/"
-    audit_res = session.get(audit_url, timeout=10)
+        return fetch_portal_config(server_id)
 
     return {
         "ns1": get_td_value_from_html(info_res.text, "Label"),

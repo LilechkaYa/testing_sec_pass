@@ -12,7 +12,7 @@ services:
     env_file:
       - .env
     # We run Gunicorn here
-    command: gunicorn --workers 3 --timeout 120 --bind 0.0.0.0:8000 app:app
+    command: gunicorn --workers 2 --threads 4 --timeout 120 --bind 0.0.0.0:8000 app:app
     expose:
       - "8000"
     restart: always
