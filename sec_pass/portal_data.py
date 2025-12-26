@@ -9,7 +9,6 @@ load_dotenv()
 
 # --- NETWORK OPTIMIZATION ---
 session = requests.Session()
-# Allow the session to handle many parallel connections without bottlenecking
 adapter = HTTPAdapter(pool_connections=20, pool_maxsize=20)
 session.mount('https://', adapter)
 
@@ -44,11 +43,16 @@ def login_to_portal():
         return False
 
 def extract_value(soup, key, key_in_th=True):
-    """Searches an existing soup object (much faster than re-parsing)"""
+    """Searches an existing soup object"""
     try:
         tag = 'th' if key_in_th else 'td'
+        # Look for a tag that contains the key string
         target = soup.find(tag, string=lambda t: t and key in t)
-        return target.find_next_sibling('td').get_text(strip=True)
+        if target:
+            # Most portal values are in the immediate next <td>
+            val = target.find_next_sibling('td').get_text(strip=True)
+            return val
+        return "N/A"
     except:
         return "N/A"
 
@@ -71,15 +75,22 @@ def fetch_portal_config(server_id: str):
         _LOGGED_IN = False
         return fetch_portal_config(server_id)
 
-    # --- THE BIG SPEED FIX: Parse ONCE per result ---
     info_soup = BeautifulSoup(info_res.text, 'lxml')
     audit_soup = BeautifulSoup(audit_res.text, 'lxml')
 
-    return {
+    # Extraction
+    config = {
         "ns1": extract_value(info_soup, "Label"),
         "dedicatedip": extract_value(info_soup, "Production IPv4"),
         "cpu": extract_value(audit_soup, "CPU Label", key_in_th=False),
         "ram": extract_value(audit_soup, "Total RAM", key_in_th=False),
         "disks": extract_value(audit_soup, "Total Storage", key_in_th=False),
+        
+        # --- NEW FIELD: Last Update ---
+        # On the audit page, this is usually a <td> with "Last Update" label
+        "last_update": extract_value(audit_soup, "Last Update", key_in_th=False),
+        
         "server_id": server_id 
     }
+    
+    return config

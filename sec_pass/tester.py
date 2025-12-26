@@ -100,7 +100,6 @@ def analyze_and_compare(whmcs_data, local_config):
         return
 
     # --- PRIORITY SELECTION LOGIC ---
-    # Pick 'Pending' first (for 2nd pass), then 'Active', fallback to first index.
     whmcs_product = next(
         (p for p in product_list if p.get('status').lower() == 'pending'),
         next((p for p in product_list if p.get('status').lower() == 'active'), product_list[0])
@@ -115,6 +114,12 @@ def analyze_and_compare(whmcs_data, local_config):
 
     print(f"\n--- CONFIGURATION AUDIT: {server_id} ({server_type}) ---")
     print(f"Targeting: {product_name} | Status: {product_status}")
+    
+    # Print the Last Update timestamp from the Portal
+    last_update = local_config.get('last_update', 'N/A')
+    print("-" * 50)
+    print(f'<span style="color: yellow;">Portal Audit Last Update: {last_update}</span>')
+    
     print("-" * 50)
 
     for field in fields:
@@ -151,7 +156,7 @@ def analyze_and_compare(whmcs_data, local_config):
 
 def make_whmcs_request():
     if not server_id: return
-    print(f"\n--- Connecting to WHMCS API ---")
+    #print(f"\n--- Connecting to WHMCS API ---")
     try:
         response = requests.post(WHMCS_API_URL, data=API_PAYLOAD, timeout=20, verify=False)
         data = response.json()
