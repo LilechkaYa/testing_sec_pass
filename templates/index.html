@@ -25,7 +25,8 @@
 <div class="container">
     <div class="card audit-card shadow-sm">
         <div class="card-header bg-dark text-white text-center py-3">
-            <h3 class="mb-0">Configuration Auditor</h3>
+            <h3 class="mb-0">Configuration Checker</h3>
+		<p>Compares WHMCS Product data against Simply Portal Audit data</p>
         </div>
         <div class="card-body p-4">
             <form method="POST" onsubmit="showLoading()">
@@ -46,7 +47,7 @@
 
             {% if output %}
             <div id="results-container">
-                <h5 class="text-secondary mt-4 mb-3">Audit Logs for ID: {{ server_id }}</h5>
+                <h5 class="text-secondary mt-4 mb-3">Checker Logs for ID: {{ server_id }}</h5>
                 <div class="results-box shadow-inner">
 {{ output | replace("✅", "<span class='text-success'>✅</span>") | replace("🚨", "<span class='text-danger'>🚨</span>") | safe }}
                 </div>
