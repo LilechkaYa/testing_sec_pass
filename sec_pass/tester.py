@@ -55,23 +55,13 @@ def normalize_ram(value):
     return f"{match.group(1)}g" if match else ""
 
 def normalize_cpu(value):
-    """
-    Simplifies CPU strings to just the model name.
-    Example: 'AMD Ryzen 5 7600 @ 3.8GHz' -> 'amd ryzen 5 7600'
-    """
     if not value: return ""
     val = str(value).lower()
-    # Remove everything after '@' or '(' 
     val = re.split(r'[@\(\)]', val)[0]
-    # Remove common filler words to keep the core model
     val = val.replace("processor", "").replace("cpu", "").strip()
     return " ".join(val.split())
 
 def normalize_disks(value):
-    """
-    Converts disk strings to a numeric GB total.
-    Handles '2x 960' and '2x 2TB' (Multiplies by 1000 for TB).
-    """
     if not value: return 0
     val = str(value).lower()
     
@@ -80,7 +70,6 @@ def normalize_disks(value):
     if mult_match:
         multiplier = int(mult_match.group(1))
     
-    # Extract number and unit (GB or TB)
     size_match = re.search(r"(\d+(?:\.\d+)?)\s*(tb|gb)?", val)
     if not size_match:
         digits = re.search(r"(\d+)", val)
@@ -90,7 +79,7 @@ def normalize_disks(value):
     unit = size_match.group(2)
 
     if unit == 'tb':
-        size_val *= 1000 # Using 1000 for disk manufacturer math
+        size_val *= 1000 
     
     return int(multiplier * size_val)
 
@@ -107,16 +96,25 @@ def analyze_and_compare(whmcs_data, local_config):
     discrepancies = {}
     product_list = whmcs_data.get('products', {}).get('product', [])
     if not product_list:
-        print("❌ ERROR: No active product found in WHMCS.")
+        print("❌ ERROR: No product found in WHMCS for this ID.")
         return
 
-    whmcs_product = product_list[0]
-    ns1_value = whmcs_product.get('ns1', 'N/A')
+    # --- PRIORITY SELECTION LOGIC ---
+    # Pick 'Pending' first (for 2nd pass), then 'Active', fallback to first index.
+    whmcs_product = next(
+        (p for p in product_list if p.get('status').lower() == 'pending'),
+        next((p for p in product_list if p.get('status').lower() == 'active'), product_list[0])
+    )
+
+    product_name = whmcs_product.get('name', 'Unknown Product')
+    product_status = whmcs_product.get('status', 'N/A').upper()
     
+    ns1_value = whmcs_product.get('ns1', 'N/A')
     server_type = "VIRTUAL" if ns1_value.lower().startswith("hv") else "DEDICATED"
     fields = ["ns1", "dedicatedip"] if server_type == "VIRTUAL" else ["ns1", "dedicatedip", "cpu", "ram", "disks"]
 
     print(f"\n--- CONFIGURATION AUDIT: {server_id} ({server_type}) ---")
+    print(f"Targeting: {product_name} | Status: {product_status}")
     print("-" * 50)
 
     for field in fields:
@@ -129,14 +127,12 @@ def analyze_and_compare(whmcs_data, local_config):
         elif field == "ram":
             is_match = normalize_ram(whmcs_val) == normalize_ram(local_val)
         elif field == "cpu":
-            # Check if one CPU string contains the other to handle varying detail levels
             whmcs_cpu = normalize_cpu(whmcs_val)
             local_cpu = normalize_cpu(local_val)
             is_match = (whmcs_cpu in local_cpu or local_cpu in whmcs_cpu)
         elif field == "disks":
             w_disk = normalize_disks(whmcs_val)
             l_disk = normalize_disks(local_val)
-            # 10% tolerance for formatting/RAID overhead
             is_match = (l_disk >= w_disk * 0.9) if w_disk > 0 else (l_disk == w_disk)
         else:
             is_match = str(whmcs_val).lower().strip() == str(local_val).lower().strip()
