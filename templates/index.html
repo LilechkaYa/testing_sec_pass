@@ -1,18 +1,71 @@
-<!DOSCTYPE html>
-<html>
-<head><title>Second Pass Tool</title></head>
-<body style="font-family: sans-serif; padding: 40px;">
-    <h2>Configuration Check</h2>
-    <form method="POST">
-        <input type="text" name="server_id" placeholder="Enter 5-digit ID" required>
-        <button type="submit">Check Server</button>
-    </form>
-    
-    {% if output %}
-    <hr>
-    <h3>Results:</h3>
-    <pre style="background: #f4f4f4; padding: 15px; border: 1px solid #ccc;">{{ output }}</pre>
-    {% endif %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Second Pass Tool</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .audit-card { max-width: 900px; margin: 50px auto; border-radius: 15px; }
+        .results-box { 
+            background: #212529; 
+            color: #f8f9fa; 
+            padding: 20px; 
+            border-radius: 8px; 
+            font-family: 'Courier New', Courier, monospace;
+            white-space: pre-wrap;
+            line-height: 1.5;
+        }
+        #loading-spinner { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="card audit-card shadow-sm">
+        <div class="card-header bg-dark text-white text-center py-3">
+            <h3 class="mb-0">Configuration Auditor</h3>
+        </div>
+        <div class="card-body p-4">
+            <form method="POST" onsubmit="showLoading()">
+                <div class="input-group input-group-lg mb-3">
+                    <input type="text" name="server_id" class="form-control" 
+                           placeholder="Enter 5-digit Server ID (e.g., 29305)" 
+                           value="{{ server_id if server_id else '' }}" required>
+                    <button class="btn btn-primary" type="submit" id="btn-check">Check Server</button>
+                </div>
+            </form>
+
+            <div id="loading-spinner" class="text-center my-5">
+                <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-3 text-muted">Consulting SimplyHosting Portal & WHMCS API...</p>
+            </div>
+
+            {% if output %}
+            <div id="results-container">
+                <h5 class="text-secondary mt-4 mb-3">Audit Logs for ID: {{ server_id }}</h5>
+                <div class="results-box shadow-inner">
+{{ output | replace("✅", "<span class='text-success'>✅</span>") | replace("🚨", "<span class='text-danger'>🚨</span>") | safe }}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+    function showLoading() {
+        document.getElementById('loading-spinner').style.display = 'block';
+        document.getElementById('btn-check').disabled = true;
+        if (document.getElementById('results-container')) {
+            document.getElementById('results-container').style.opacity = '0.3';
+        }
+    }
+</script>
+
 </body>
 </html>
 
