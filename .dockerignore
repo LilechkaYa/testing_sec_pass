@@ -1,7 +1,7 @@
 # Environment / secrets
 .env
 .env.bak
-
+.env.production_backup
 # Python virtual environments (host-only)
 venv/
 venv_test_attrs/

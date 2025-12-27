@@ -5,7 +5,7 @@ import sys
 import re
 from dotenv import load_dotenv
 import urllib3
-# Ensure this import matches your file structure
+# 1. ADDED get_secret TO THE IMPORT
 from sec_pass.portal_data import fetch_portal_config, get_secret 
 
 # Suppress the SSL warning for development/testing
@@ -15,16 +15,16 @@ load_dotenv()
 
 # --- 1. API CREDENTIALS ---
 def get_api_credentials():
-    creds = {
-        "WHMCS_API_URL": get_secret("WHMCS_API_URL"),
-        "API_IDENTIFIER": get_secret("WHMCS_API_IDENTIFIER"),
-        "API_SECRET": get_secret("WHMCS_API_SECRET"),
-    }
-    missing = [k for k, v in creds.items() if not v]
-    if missing:
-        print(f"FATAL ERROR: The following credentials are missing: {', '.join(missing)}")
+    try:
+        # 2. UPDATED TO USE get_secret()
+        return {
+            "WHMCS_API_URL": get_secret("WHMCS_API_URL"),
+            "API_IDENTIFIER": get_secret("WHMCS_API_IDENTIFIER"),
+            "API_SECRET": get_secret("WHMCS_API_SECRET"),
+        }
+    except KeyError as e:
+        print(f"FATAL ERROR: Environment variable {e} is not set.")
         sys.exit(1)
-    return creds
 
 API_CREDENTIALS = get_api_credentials()
 WHMCS_API_URL = API_CREDENTIALS["WHMCS_API_URL"]
@@ -89,6 +89,7 @@ def get_config_option_value(whmcs_product, name_key):
             return option.get('value', 'N/A')
     return "N/A"
 
+# 3. DEFINE analyze_and_compare BEFORE make_whmcs_request calls it
 def analyze_and_compare(whmcs_data, local_config):
     discrepancies = {}
     product_list = whmcs_data.get('products', {}).get('product', [])
@@ -111,7 +112,7 @@ def analyze_and_compare(whmcs_data, local_config):
     print(f"Targeting: {product_name} | Status: {product_status}")
     last_update = local_config.get('last_update', 'N/A')
     print("-" * 50)
-    print(f'Portal Audit Last Update: {last_update}')
+    print(f'<span style="color: yellow;">Portal Audit Last Update: {last_update}</span>')
     print("-" * 50)
 
     for field in fields:
@@ -162,7 +163,4 @@ def make_whmcs_request():
         print(f"🚨 CONNECTION ERROR: {e}")
 
 if __name__ == "__main__":
-    target_id = sys.argv[1] if len(sys.argv) > 1 else None
-    if target_id:
-        set_server_id(target_id)
-        make_whmcs_request()
+    make_whmcs_request()

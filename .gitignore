@@ -1,5 +1,6 @@
 .env
 .env.bak
+.env.production_backup
 pycache/*.pyc
 *.log
 .DS_Store
