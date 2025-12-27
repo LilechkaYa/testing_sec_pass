@@ -26,7 +26,7 @@
     <div class="card audit-card shadow-sm">
         <div class="card-header bg-dark text-white text-center py-3">
             <h3 class="mb-0">Configuration Checker</h3>
-		<p>Compares WHMCS Product data against Simply Portal Audit data</p>
+            <p class="mb-0">Compares WHMCS Product data against Simply Portal Audit data</p>
         </div>
         <div class="card-body p-4">
             <form method="POST" onsubmit="showLoading()">
@@ -47,9 +47,11 @@
 
             {% if output %}
             <div id="results-container">
+                <hr>
                 <h5 class="text-secondary mt-4 mb-3">Checker Logs for ID: {{ server_id }}</h5>
                 <div class="results-box shadow-inner">
-{{ output | replace("✅", "<span class='text-success'>✅</span>") | replace("🚨", "<span class='text-danger'>🚨</span>") | safe }}
+                    {# Use safe filter to allow the colored emoji spans #}
+                    {{ output | replace("✅", "<span class='text-success'>✅</span>") | replace("🚨", "<span class='text-danger'>🚨</span>") | safe }}
                 </div>
             </div>
             {% endif %}
@@ -61,12 +63,13 @@
     function showLoading() {
         document.getElementById('loading-spinner').style.display = 'block';
         document.getElementById('btn-check').disabled = true;
-        if (document.getElementById('results-container')) {
-            document.getElementById('results-container').style.opacity = '0.3';
+        
+        const results = document.getElementById('results-container');
+        if (results) {
+            results.style.opacity = '0.3';
         }
     }
 </script>
 
 </body>
 </html>
-

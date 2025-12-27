@@ -6,6 +6,29 @@ from sec_pass.tester import make_whmcs_request, set_server_id
 
 app = Flask(__name__)
 
+# --- 1. PROXY MIDDLEWARE START ---
+class PrefixMiddleware(object):
+    def __init__(self, app, prefix=''):
+        self.app = app
+        self.prefix = prefix
+
+    def __call__(self, environ, start_response):
+        # This checks if the request starts with /secpass
+        if environ['PATH_INFO'].startswith(self.prefix):
+            # Strip the prefix before passing it to Flask routes
+            environ['PATH_INFO'] = environ['PATH_INFO'][len(self.prefix):]
+            environ['SCRIPT_NAME'] = self.prefix
+            return self.app(environ, start_response)
+        else:
+            # If someone hits the container directly without the prefix, 
+            # we return a 404 to stay consistent with the proxy behavior.
+            start_response('404 Not Found', [('Content-Type', 'text/plain')])
+            return [b"Not Found"]
+
+# Wrap the app with the /secpass prefix
+app.wsgi_app = PrefixMiddleware(app.wsgi_app, prefix='/secpass')
+# --- PROXY MIDDLEWARE END ---
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     output = None
