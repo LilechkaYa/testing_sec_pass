@@ -37,7 +37,7 @@ If an API key or password changes, follow these steps to securely update the env
 
 ---
 
-## 🛠 Maintenance Commands
+## Maintenance Commands
 
 | Action | Command | When to run |
 | :--- | :--- | :--- |
