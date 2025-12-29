@@ -102,7 +102,7 @@ def analyze_and_compare(whmcs_data, local_config):
     pending_products = [p for p in product_list if p.get('status').lower() == 'pending']
 
     if active_products:
-        print(f"🛑 WARNING: Found {len(active_products)} ACTIVE service(s) for this domain in WHMCS!")
+        print(f'<span style="color: red;">WARNING: Found {len(active_products)} ACTIVE service(s) for this domain in WHMCS!')
         print("This server might already be in use. Please verify manually before proceeding.")
         # Decide if you want to stop here or continue. 
         # To stop, uncomment the next line:
@@ -112,10 +112,10 @@ def analyze_and_compare(whmcs_data, local_config):
     # Prioritize auditing the Pending one, but acknowledge the Active one exists
     if pending_products:
         whmcs_product = pending_products[0]
-        print("🔍 Auditing the PENDING order...")
+        print("Auditing the PENDING order...")
     else:
         whmcs_product = active_products[0] if active_products else product_list[0]
-        print(f"ℹ️ No pending orders found. Auditing existing {whmcs_product.get('status')} product.")
+        print(f"No pending orders found. Auditing existing {whmcs_product.get('status')} product.")
 
     product_name = whmcs_product.get('name', 'Unknown Product')
     product_status = whmcs_product.get('status', 'N/A').upper()
