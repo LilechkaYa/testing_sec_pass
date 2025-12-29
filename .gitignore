@@ -10,3 +10,4 @@ notes
 __pycache__/
 *.pyc
 test_portal.py
+software_raid.py

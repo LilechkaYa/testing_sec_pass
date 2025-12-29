@@ -116,7 +116,6 @@ def analyze_and_compare(whmcs_data, local_config):
     
     server_type = "VIRTUAL" if ns1_value.lower().startswith("hv") else "DEDICATED"
     
-    # Include 'raid' in the loop for dedicated servers
     fields = ["ns1", "dedicatedip"] if server_type == "VIRTUAL" else ["ns1", "dedicatedip", "cpu", "ram", "disks", "raid"]
 
     print(f"\n--- CONFIGURATION AUDIT: {server_id} ({server_type}) ---")
@@ -130,12 +129,27 @@ def analyze_and_compare(whmcs_data, local_config):
         local_val = local_config.get(field, 'N/A')
         whmcs_val = whmcs_product.get(field, 'N/A') if field in ["ns1", "dedicatedip"] else get_config_option_value(whmcs_product, field)
 
-        # --- SPECIAL LOGIC FOR SOFTWARE RAID ---
-        # If WHMCS value contains "software", skip the comparison logic
-        if field == "raid" and "software" in str(whmcs_val).lower():
-            print(f"✅ HMCS='{whmcs_val}' (Software RAID - Skipping comparison)")
-            continue
+        # --- AMENDED RAID LOGIC ---
+        if field == "raid":
+            l_val_clean = str(local_val).lower().strip()
+            w_val_clean = str(whmcs_val).lower().strip()
 
+            # 1. Software RAID Case (Skip Comparison)
+            if "software" in w_val_clean:
+                print(f"✅ OK: RAID (Software RAID detected in WHMCS - Skipping comparison)")
+                continue
+
+            # 2. No RAID Match Case (Portal 'N/A' matches WHMCS 'Default - No Raid')
+            is_no_raid_match = (
+                (l_val_clean == "n/a" or "no raid" in l_val_clean) and 
+                (w_val_clean == "n/a" or "no raid" in w_val_clean or "default" in w_val_clean)
+            )
+            
+            if is_no_raid_match:
+                print(f"✅ OK: RAID matches ('{local_val}' / '{whmcs_val}')")
+                continue
+
+        # --- STANDARD COMPARISON LOGIC ---
         is_match = False
         if field == "ns1":
             is_match = normalize_ns1(whmcs_val) == normalize_ns1(local_val)
@@ -150,7 +164,6 @@ def analyze_and_compare(whmcs_data, local_config):
             l_disk = normalize_disks(local_val)
             is_match = (l_disk >= w_disk * 0.9) if w_disk > 0 else (l_disk == w_disk)
         else:
-            # Basic string comparison for other fields (IP, ns1, etc.)
             is_match = str(whmcs_val).lower().strip() == str(local_val).lower().strip()
 
         if not is_match:
