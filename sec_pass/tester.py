@@ -5,7 +5,7 @@ import sys
 import re
 from dotenv import load_dotenv
 import urllib3
-# 1. ADDED get_secret TO THE IMPORT
+# Import secret and portal fetching logic
 from sec_pass.portal_data import fetch_portal_config, get_secret 
 
 # Suppress the SSL warning for development/testing
@@ -16,7 +16,6 @@ load_dotenv()
 # --- 1. API CREDENTIALS ---
 def get_api_credentials():
     try:
-        # 2. UPDATED TO USE get_secret()
         return {
             "WHMCS_API_URL": get_secret("WHMCS_API_URL"),
             "API_IDENTIFIER": get_secret("WHMCS_API_IDENTIFIER"),
@@ -80,15 +79,6 @@ def normalize_disks(value):
         size_val *= 1000 
     return int(multiplier * size_val)
 
-# --- NEW RAID NORMALIZATION ---
-def normalize_raid(value):
-    if not value or value == "N/A": return ""
-    # Extract digit after 'state:' (e.g., from 'name:PERC H330 Adapterstate:5')
-    match = re.search(r"state:\s*(\d+)", str(value).lower())
-    if not match:
-        match = re.search(r"(\d+)", str(value))
-    return match.group(1) if match else ""
-
 def get_config_option_value(whmcs_product, name_key):
     config_list = whmcs_product.get('configoptions', {}).get('configoption', [])
     if isinstance(config_list, dict):
@@ -98,7 +88,8 @@ def get_config_option_value(whmcs_product, name_key):
             return option.get('value', 'N/A')
     return "N/A"
 
-# 3. DEFINE analyze_and_compare BEFORE make_whmcs_request calls it
+# --- CORE AUDIT LOGIC ---
+
 def analyze_and_compare(whmcs_data, local_config):
     discrepancies = {}
     product_list = whmcs_data.get('products', {}).get('product', [])
@@ -106,14 +97,12 @@ def analyze_and_compare(whmcs_data, local_config):
         print("❌ ERROR: No product found in WHMCS for this ID.")
         return
 
-# --- NEW SAFETY CHECK: Look for existing Active services ---
     active_products = [p for p in product_list if p.get('status').lower() == 'active']
     pending_products = [p for p in product_list if p.get('status').lower() == 'pending']
 
     if active_products:
         print(f'<span class="text-danger fw-bold">🛑 WARNING: Found {len(active_products)} ACTIVE service(s) for this domain in WHMCS! Please verify.</span>')
 
-    # --- SELECTION LOGIC ---
     if pending_products:
         whmcs_product = pending_products[0]
         print("Auditing the PENDING order...")
@@ -124,9 +113,10 @@ def analyze_and_compare(whmcs_data, local_config):
     product_name = whmcs_product.get('name', 'Unknown Product')
     product_status = whmcs_product.get('status', 'N/A').upper()
     ns1_value = whmcs_product.get('ns1', 'N/A')
+    
     server_type = "VIRTUAL" if ns1_value.lower().startswith("hv") else "DEDICATED"
     
-    # RAID added to Dedicated fields
+    # Include 'raid' in the loop for dedicated servers
     fields = ["ns1", "dedicatedip"] if server_type == "VIRTUAL" else ["ns1", "dedicatedip", "cpu", "ram", "disks", "raid"]
 
     print(f"\n--- CONFIGURATION AUDIT: {server_id} ({server_type}) ---")
@@ -139,6 +129,12 @@ def analyze_and_compare(whmcs_data, local_config):
     for field in fields:
         local_val = local_config.get(field, 'N/A')
         whmcs_val = whmcs_product.get(field, 'N/A') if field in ["ns1", "dedicatedip"] else get_config_option_value(whmcs_product, field)
+
+        # --- SPECIAL LOGIC FOR SOFTWARE RAID ---
+        # If WHMCS value contains "software", skip the comparison logic
+        if field == "raid" and "software" in str(whmcs_val).lower():
+            print(f"✅ HMCS='{whmcs_val}' (Software RAID - Skipping comparison)")
+            continue
 
         is_match = False
         if field == "ns1":
@@ -153,10 +149,8 @@ def analyze_and_compare(whmcs_data, local_config):
             w_disk = normalize_disks(whmcs_val)
             l_disk = normalize_disks(local_val)
             is_match = (l_disk >= w_disk * 0.9) if w_disk > 0 else (l_disk == w_disk)
-        elif field == "raid":
-            # Comparison using the new RAID normalizer
-            is_match = normalize_raid(whmcs_val) == normalize_raid(local_val)
         else:
+            # Basic string comparison for other fields (IP, ns1, etc.)
             is_match = str(whmcs_val).lower().strip() == str(local_val).lower().strip()
 
         if not is_match:
@@ -187,4 +181,8 @@ def make_whmcs_request():
         print(f"🚨 CONNECTION ERROR: {e}")
 
 if __name__ == "__main__":
-    make_whmcs_request()
+    if len(sys.argv) > 1:
+        set_server_id(sys.argv[1])
+        make_whmcs_request()
+    else:
+        print("Usage: python tester.py <server_id>")
