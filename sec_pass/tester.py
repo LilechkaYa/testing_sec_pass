@@ -112,9 +112,20 @@ def analyze_and_compare(whmcs_data, local_config):
 
     product_name = whmcs_product.get('name', 'Unknown Product')
     product_status = whmcs_product.get('status', 'N/A').upper()
-    ns1_value = whmcs_product.get('ns1', 'N/A')
+
+    # --- SERVER TYPE DECISION LOGIC ---
+    config_list = whmcs_product.get('configoptions', {}).get('configoption', [])
+    if isinstance(config_list, dict):
+        config_list = [config_list]
     
-    server_type = "VIRTUAL" if ns1_value.lower().startswith("hv") else "DEDICATED"
+    option_names = [str(opt.get('option', '')).lower() for opt in config_list]
+    
+    if "virtual cpu" in option_names:
+        server_type = "VIRTUAL"
+        whmcs_cpu_field = "virtual cpu"
+    else:
+        server_type = "DEDICATED"
+        whmcs_cpu_field = "cpu"
     
     fields = ["ns1", "dedicatedip"] if server_type == "VIRTUAL" else ["ns1", "dedicatedip", "cpu", "ram", "disks", "raid"]
 
@@ -127,25 +138,37 @@ def analyze_and_compare(whmcs_data, local_config):
 
     for field in fields:
         local_val = local_config.get(field, 'N/A')
-        whmcs_val = whmcs_product.get(field, 'N/A') if field in ["ns1", "dedicatedip"] else get_config_option_value(whmcs_product, field)
+        current_whmcs_key = whmcs_cpu_field if field == "cpu" else field
+        
+        if field in ["ns1", "dedicatedip"]:
+            whmcs_val = whmcs_product.get(field, 'N/A')
+        else:
+            whmcs_val = get_config_option_value(whmcs_product, current_whmcs_key)
 
         # --- AMENDED RAID LOGIC ---
         if field == "raid":
             l_val_clean = str(local_val).lower().strip()
             w_val_clean = str(whmcs_val).lower().strip()
 
-            # 1. Software RAID Case (Skip Comparison)
+            # 1. SOFTWARE RAID: Skip comparison
             if "software" in w_val_clean:
                 print(f"✅ OK: RAID (Software RAID detected in WHMCS - Skipping comparison)")
                 continue
 
-            # 2. No RAID Match Case (Portal 'N/A' matches WHMCS 'Default - No Raid')
+            # 2. N/A MATCH: Portal N/A matches WHMCS No Raid/Default
             is_no_raid_match = (
                 (l_val_clean == "n/a" or "no raid" in l_val_clean) and 
                 (w_val_clean == "n/a" or "no raid" in w_val_clean or "default" in w_val_clean)
             )
-            
             if is_no_raid_match:
+                print(f"✅ OK: RAID matches ('{local_val}' / '{whmcs_val}')")
+                continue
+
+            # 3. NUMERIC MATCH: Extracts '1' from 'RAID 1' to match Portal '1'
+            l_digits = "".join(re.findall(r'\d+', l_val_clean))
+            w_digits = "".join(re.findall(r'\d+', w_val_clean))
+            
+            if l_digits and w_digits and l_digits == w_digits:
                 print(f"✅ OK: RAID matches ('{local_val}' / '{whmcs_val}')")
                 continue
 
