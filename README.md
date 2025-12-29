@@ -5,7 +5,7 @@ The application is hosted in an isolated **Docker Swarm** environment but remain
 
 1.  **Public Entry:** The host server (Apache) receives requests at the configured internal URI.
 2.  **Reverse Proxy:** Apache forwards traffic to the Docker Nginx container.
-3.  **Internal Routing:** * Access the tool via: `http://<PRODUCTION_SERVER_IP>/secpass`
+3.  **Internal Routing:**  Access the tool via: `http://<PRODUCTION_SERVER_IP>/secpass`
     * A custom `PrefixMiddleware` handles internal routing to ensure link integrity behind the sub-path.
 
 
