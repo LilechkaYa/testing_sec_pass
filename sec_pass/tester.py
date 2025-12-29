@@ -5,13 +5,18 @@ import sys
 import re
 from dotenv import load_dotenv
 import urllib3
-from portal_data import fetch_portal_config, get_secret 
+# 1. ADDED get_secret TO THE IMPORT
+from sec_pass.portal_data import fetch_portal_config, get_secret 
 
+# Suppress the SSL warning for development/testing
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 load_dotenv()
 
+# --- 1. API CREDENTIALS ---
 def get_api_credentials():
     try:
+        # 2. UPDATED TO USE get_secret()
         return {
             "WHMCS_API_URL": get_secret("WHMCS_API_URL"),
             "API_IDENTIFIER": get_secret("WHMCS_API_IDENTIFIER"),
@@ -75,13 +80,13 @@ def normalize_disks(value):
         size_val *= 1000 
     return int(multiplier * size_val)
 
+# --- NEW RAID NORMALIZATION ---
 def normalize_raid(value):
     if not value or value == "N/A": 
         return ""
+    # Finds the full integer (e.g., "10" from "RAID 10" or just "5")
     match = re.search(r"(\d+)", str(value))
-    if match:
-        return match.group(1)
-    return ""
+    return match.group(1) if match else ""
 
 def get_config_option_value(whmcs_product, name_key):
     config_list = whmcs_product.get('configoptions', {}).get('configoption', [])
@@ -92,27 +97,22 @@ def get_config_option_value(whmcs_product, name_key):
             return option.get('value', 'N/A')
     return "N/A"
 
+# 3. DEFINE analyze_and_compare BEFORE make_whmcs_request calls it
 def analyze_and_compare(whmcs_data, local_config):
     discrepancies = {}
-    products_container = whmcs_data.get('products', {})
-    if not products_container:
-        print("❌ ERROR: No product data in WHMCS.")
-        return
-        
-    product_list = products_container.get('product', [])
-    if isinstance(product_list, dict):
-        product_list = [product_list]
-
+    product_list = whmcs_data.get('products', {}).get('product', [])
     if not product_list:
         print("❌ ERROR: No product found in WHMCS for this ID.")
         return
 
+# --- NEW SAFETY CHECK: Look for existing Active services ---
     active_products = [p for p in product_list if p.get('status').lower() == 'active']
     pending_products = [p for p in product_list if p.get('status').lower() == 'pending']
 
     if active_products:
-        print(f'<span class="text-danger fw-bold">🛑 WARNING: Found {len(active_products)} ACTIVE service(s) for this domain in WHMCS!</span>')
+        print(f'<span class="text-danger fw-bold">🛑 WARNING: Found {len(active_products)} ACTIVE service(s) for this domain in WHMCS! Please verify.</span>')
 
+    # --- SELECTION LOGIC ---
     if pending_products:
         whmcs_product = pending_products[0]
         print("Auditing the PENDING order...")
@@ -123,9 +123,9 @@ def analyze_and_compare(whmcs_data, local_config):
     product_name = whmcs_product.get('name', 'Unknown Product')
     product_status = whmcs_product.get('status', 'N/A').upper()
     ns1_value = whmcs_product.get('ns1', 'N/A')
-    
     server_type = "VIRTUAL" if ns1_value.lower().startswith("hv") else "DEDICATED"
-    # ADDED "RAID" to fields
+    
+    # UPDATED: Added "raid" to the field list for DEDICATED
     fields = ["ns1", "dedicatedip"] if server_type == "VIRTUAL" else ["ns1", "dedicatedip", "cpu", "ram", "disks", "raid"]
 
     print(f"\n--- CONFIGURATION AUDIT: {server_id} ({server_type}) ---")
@@ -152,8 +152,8 @@ def analyze_and_compare(whmcs_data, local_config):
             w_disk = normalize_disks(whmcs_val)
             l_disk = normalize_disks(local_val)
             is_match = (l_disk >= w_disk * 0.9) if w_disk > 0 else (l_disk == w_disk)
+        # --- NEW RAID LOGIC ---
         elif field == "raid":
-            # NEW RAID LOGIC
             is_match = normalize_raid(whmcs_val) == normalize_raid(local_val)
         else:
             is_match = str(whmcs_val).lower().strip() == str(local_val).lower().strip()
@@ -186,6 +186,4 @@ def make_whmcs_request():
         print(f"🚨 CONNECTION ERROR: {e}")
 
 if __name__ == "__main__":
-    # Ensure a server_id is set before running
-    # set_server_id("20227") 
     make_whmcs_request()

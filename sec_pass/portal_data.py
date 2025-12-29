@@ -7,7 +7,9 @@ from requests.adapters import HTTPAdapter
 
 load_dotenv()
 
+# --- 1. SECRET LOADER ---
 def get_secret(key, default=None):
+    """Checks for a Docker Secret file first, then falls back to Env."""
     secret_path = f"/run/secrets/{key}"
     if os.path.exists(secret_path):
         try:
@@ -17,6 +19,7 @@ def get_secret(key, default=None):
             print(f"Error reading secret {key}: {e}")
     return os.environ.get(key, default)
 
+# --- 2. NETWORK OPTIMIZATION ---
 session = requests.Session()
 adapter = HTTPAdapter(pool_connections=20, pool_maxsize=20)
 session.mount('https://', adapter)
@@ -25,12 +28,13 @@ _LOGGED_IN = False
 
 def login_to_portal():
     global _LOGGED_IN
+    # Use get_secret to support Swarm
     url = get_secret("LOGIN_URL")
     user = get_secret("PORTAL_USER")
     pw = get_secret("PORTAL_PASS")
 
     if not url or not user or not pw:
-        print("🚨 FATAL: Portal credentials missing.")
+        print("🚨 FATAL: Portal credentials (LOGIN_URL, USER, PASS) missing.")
         return False
 
     try:
@@ -94,7 +98,7 @@ def fetch_portal_config(server_id: str):
         "cpu": extract_value(audit_soup, "CPU Label", key_in_th=False),
         "ram": extract_value(audit_soup, "Total RAM", key_in_th=False),
         "disks": extract_value(audit_soup, "Total Storage", key_in_th=False),
-        "raid": extract_value(audit_soup, "RAID", key_in_th=False), # NEW RAID FETCH
+        "raid": extract_value(audit_soup, "RAID", key_in_th=False),  # Added RAID logic here
         "last_update": extract_value(audit_soup, "Last Update", key_in_th=False),
         "server_id": server_id 
     }
