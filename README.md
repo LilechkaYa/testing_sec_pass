@@ -41,6 +41,7 @@ If an API key or password changes, follow these steps to securely update the env
 
 | Action | Command | When to run |
 | :--- | :--- | :--- |
+| **Full Build & Update** | `docker build -t testing_sec_pass_app:latest . && docker service update --force audit_tool_app` | Every time after changing Python or HTML. |
 | **Deploy/Update Stack** | `docker stack deploy -c stack.yml audit_tool` | After changing code, the `stack.yml`, or any secrets. |
 | **Check Health** | `docker stack services audit_tool` | To verify if the container is running (1/1) or has crashed (0/1). |
 | **View Live Logs** | `docker service logs -f audit_tool_app` | To debug errors or watch the audit output in real-time. |
