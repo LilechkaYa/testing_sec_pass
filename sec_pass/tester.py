@@ -76,10 +76,12 @@ def normalize_disks(value):
     return int(multiplier * size_val)
 
 def normalize_raid(value):
-    if not value or value == "N/A": return ""
-    # Extracts the digit following "RAID" (e.g., RAID 1, RAID 5)
-    match = re.search(r"RAID\s*(\d+)", str(value), re.IGNORECASE)
-    return match.group(1) if match else ""
+    if not value or value == "N/A": 
+        return ""
+    match = re.search(r"(\d+)", str(value))
+    if match:
+        return match.group(1)
+    return ""
 
 def get_config_option_value(whmcs_product, name_key):
     config_list = whmcs_product.get('configoptions', {}).get('configoption', [])
