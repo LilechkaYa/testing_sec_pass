@@ -1,5 +1,6 @@
 import os
 import requests
+import re
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor
@@ -28,7 +29,6 @@ _LOGGED_IN = False
 
 def login_to_portal():
     global _LOGGED_IN
-    # Use get_secret to support Swarm
     url = get_secret("LOGIN_URL")
     user = get_secret("PORTAL_USER")
     pw = get_secret("PORTAL_PASS")
@@ -62,10 +62,25 @@ def login_to_portal():
 def extract_value(soup, key, key_in_th=True):
     try:
         tag = 'th' if key_in_th else 'td'
-        target = soup.find(tag, string=lambda t: t and key in t)
+        # Improved lambda to handle both exact and partial matches
+        target = soup.find(tag, string=lambda t: t and key.lower() in t.get_text().lower())
         if target:
-            val = target.find_next_sibling('td').get_text(strip=True)
+            val = target.find_next_sibling('td').get_text(" ", strip=True)
             return val
+        return "N/A"
+    except:
+        return "N/A"
+
+def extract_raid_state_from_ajax(html):
+    """Parses RAID state integer from /admin/auditor/DeviceDetails/{id}"""
+    try:
+        soup = BeautifulSoup(html, "lxml")
+        for row in soup.select("tr"):
+            cells = row.find_all("td")
+            if len(cells) >= 2 and "raid" in cells[0].get_text(strip=True).lower():
+                text = cells[1].get_text(" ", strip=True).lower()
+                match = re.search(r"state:\s*(\d+)", text)
+                return match.group(1) if match else "N/A"
         return "N/A"
     except:
         return "N/A"
@@ -78,12 +93,17 @@ def fetch_portal_config(server_id: str):
 
     info_url = f"https://portal.simplyhosting.com/admin/devicemanagement/device/info/id/{server_id}/"
     audit_url = f"https://portal.simplyhosting.com/admin/devicemanagement/audit/get/deviceId/{server_id}/"
+    raid_url = f"https://portal.simplyhosting.com/admin/auditor/DeviceDetails/{server_id}"
 
-    with ThreadPoolExecutor(max_workers=2) as executor:
+    # Increased workers to 3 to handle the new RAID AJAX call
+    with ThreadPoolExecutor(max_workers=3) as executor:
         f_info = executor.submit(session.get, info_url, timeout=10)
         f_audit = executor.submit(session.get, audit_url, timeout=10)
+        f_raid = executor.submit(session.get, raid_url, timeout=10)
+        
         info_res = f_info.result()
         audit_res = f_audit.result()
+        raid_res = f_raid.result()
 
     if "LoginForm" in info_res.text or "LoginForm" in audit_res.text:
         _LOGGED_IN = False
@@ -98,8 +118,8 @@ def fetch_portal_config(server_id: str):
         "cpu": extract_value(audit_soup, "CPU Label", key_in_th=False),
         "ram": extract_value(audit_soup, "Total RAM", key_in_th=False),
         "disks": extract_value(audit_soup, "Total Storage", key_in_th=False),
-        "raid": extract_value(audit_soup, "RAID", key_in_th=False),  # Added RAID logic here
         "last_update": extract_value(audit_soup, "Last Update", key_in_th=False),
+        "raid": extract_raid_state_from_ajax(raid_res.text),
         "server_id": server_id 
     }
     

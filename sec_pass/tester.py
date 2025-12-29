@@ -82,10 +82,11 @@ def normalize_disks(value):
 
 # --- NEW RAID NORMALIZATION ---
 def normalize_raid(value):
-    if not value or value == "N/A": 
-        return ""
-    # Finds the full integer (e.g., "10" from "RAID 10" or just "5")
-    match = re.search(r"(\d+)", str(value))
+    if not value or value == "N/A": return ""
+    # Extract digit after 'state:' (e.g., from 'name:PERC H330 Adapterstate:5')
+    match = re.search(r"state:\s*(\d+)", str(value).lower())
+    if not match:
+        match = re.search(r"(\d+)", str(value))
     return match.group(1) if match else ""
 
 def get_config_option_value(whmcs_product, name_key):
@@ -125,7 +126,7 @@ def analyze_and_compare(whmcs_data, local_config):
     ns1_value = whmcs_product.get('ns1', 'N/A')
     server_type = "VIRTUAL" if ns1_value.lower().startswith("hv") else "DEDICATED"
     
-    # UPDATED: Added "raid" to the field list for DEDICATED
+    # RAID added to Dedicated fields
     fields = ["ns1", "dedicatedip"] if server_type == "VIRTUAL" else ["ns1", "dedicatedip", "cpu", "ram", "disks", "raid"]
 
     print(f"\n--- CONFIGURATION AUDIT: {server_id} ({server_type}) ---")
@@ -152,8 +153,8 @@ def analyze_and_compare(whmcs_data, local_config):
             w_disk = normalize_disks(whmcs_val)
             l_disk = normalize_disks(local_val)
             is_match = (l_disk >= w_disk * 0.9) if w_disk > 0 else (l_disk == w_disk)
-        # --- NEW RAID LOGIC ---
         elif field == "raid":
+            # Comparison using the new RAID normalizer
             is_match = normalize_raid(whmcs_val) == normalize_raid(local_val)
         else:
             is_match = str(whmcs_val).lower().strip() == str(local_val).lower().strip()
